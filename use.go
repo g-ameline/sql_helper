@@ -1,7 +1,7 @@
 package database
 
 import (
-	mb "create/database_functions/maybe"
+	mb "github.com/g-ameline/maybe"
 	"database/sql"
 	"errors"
 	"fmt"
