@@ -1,29 +1,39 @@
-package database
+package sql_helper
 
 import (
 	"database/sql"
-	// _ "github.com/mattn/go-sqlite3"
+	"fmt"
+	_ "github.com/mattn/go-sqlite3"
 	"os"
 )
 
-func Create_database_if_not_already(path_to_database string) error {
-	if !(Is_databse_exist(path_to_database)) {
-		Create_database(path_to_database)
-	} // check if all ogod
-	return Try_open_close_database(path_to_database)
-}
-
-func Is_databse_exist(path_to_db string) bool {
+func Is_database_exist(path_to_db string) bool {
 	info, err := os.Stat(path_to_db)
+	fmt.Println("info stat", info)
 	if os.IsNotExist(err) {
 		return false
 	}
 	return !info.IsDir()
 }
-func Try_open_close_database(path_to_database string) error {
+func All_tables(path_to_database string) (map[string]bool, error) {
+	tables := map[string]bool{}
 	database, err := sql.Open(database_driver, path_to_database)
 	if err != nil {
-		return err
+		return tables, err
 	}
-	return database.Close() // good practice
+	defer database.Close() // good practice
+	query := "SELECT name FROM sqlite_schema WHERE type='table'"
+	fmt.Println(query)
+	rows, err := database.Query(query)
+	if_wrong(err, "error while querying all row/record")
+	defer rows.Close()
+	for rows.Next() {
+		var table_name string
+		err := rows.Scan(&table_name)
+		tables[table_name] = true
+		if err != nil {
+			return tables, err
+		}
+	}
+	return tables, err
 }
