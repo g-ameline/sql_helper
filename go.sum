@@ -1,0 +1,4 @@
+github.com/g-ameline/maybe v0.0.0-20230830101046-a3b863d7d7d7 h1:SZ/tjCi1GMsd4zwLqLgs+RHx/d1I9QzCt7lCzBxArb4=
+github.com/g-ameline/maybe v0.0.0-20230830101046-a3b863d7d7d7/go.mod h1:7TphTbo/2oMVdUdDRCb7wkdK6XTE/V4WtwaLKh5PRAM=
+github.com/mattn/go-sqlite3 v1.14.17 h1:mCRHCLDUBXgpKAqIKsaAaAsrAlbkeomtRFKXh2L6YIM=
+github.com/mattn/go-sqlite3 v1.14.17/go.mod h1:2eHXhiwb8IkHr+BDWZGa96P6+rkvnG63S2DGjv9HUNg=
