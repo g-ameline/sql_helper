@@ -275,6 +275,33 @@ func Get_id(path_to_database string, table_name, field_key, value_key string) (s
 	return row_as_map["Id"], err
 }
 
+func Get_one_id_two_cond(path_to_database string, table_name, field_key, value_key, other_field, other_value string) (string, error) {
+	m_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
+	defer mb.Bind_x_x_e(m_db, m_db.Value.Close) // good practice
+	querying := query_get_ids_two_cond(table_name, field_key, value_key, other_field, other_value)
+	m_query := mb.Convey[*sql.DB, string](m_db, querying)
+	breadcrumb(verbose, "cond ids query:", m_query)
+	m_rows := mb.Convey[string, *sql.Rows](m_query, func() (*sql.Rows, error) { return m_db.Value.Query(m_query.Value) })
+	// m_rows.Print("inside rows")
+	defer mb.Bind_x_x_e(m_rows, m_rows.Value.Close)
+	rows := m_rows.Ascertain()
+	var err error
+	ids := map[string]bool{}
+	for rows.Next() {
+		var id string
+		err = rows.Scan(&id)
+		ids[id] = true
+		if_wrong(err, "error during scanning of a row"+" "+table_name)
+	}
+	if len(ids) != 1 {
+		return "", fmt.Errorf("there was les sor more than one result")
+	}
+	var id string
+	for k := range ids {
+		id = k
+	}
+	return id, err
+}
 func Get_ids_two_cond(path_to_database string, table_name, field_key, value_key, other_field, other_value string) (map[string]bool, error) {
 	m_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
 	defer mb.Bind_x_x_e(m_db, m_db.Value.Close) // good practice
