@@ -1,13 +1,12 @@
-package database
+package sql_helper
 
 import (
-	mb "github.com/g-ameline/maybe"
 	"database/sql"
 	"errors"
 	"fmt"
-	"strconv"
-
+	mb "github.com/g-ameline/maybe"
 	_ "github.com/mattn/go-sqlite3"
+	"strconv"
 )
 
 /* some terminology :
@@ -74,12 +73,6 @@ func Delete_records(path_to_database string, table_name, field, value string) er
 	breadcrumb(verbose, "deletion statement:", statement)
 	_, err = database.Exec(statement)
 	return err
-}
-
-func statement_delete_rows(table_name, field, value string) string {
-	var statement string
-	statement += "DELETE FROM " + table_name + " WHERE " + field + " = " + value
-	return statement
 }
 
 func Get_one_row(path_to_database string, table_name, field_key, value_key string) (map[string]string, error) {
@@ -330,7 +323,7 @@ func Is_in_database(path_to_database string, table, field_1, value_1, field_2, v
 	return rows.Next(), err
 }
 
-func statement_rows(table_name, field, value string) string {
+func statement_delete_rows(table_name, field, value string) string {
 	var statement string
 	statement += "DELETE FROM " + table_name + " WHERE " + field + " = " + value
 	return statement
@@ -375,20 +368,24 @@ func query_ids_from_table(table_name string) string {
 	return query
 }
 
-// "CONSTRAINT not_equal CHECK (follower_id <> followee_id)",
-// func add_constraint_to_table(table_name string, constraint string) {
-// 	// copy table with added contraint
-// 	temp_table_name := table_name + "_temp"
-// 	copy_table_query :=
-// 		fmt.Sprintf("CREATE TABLE %s AS", temp_table_name) +
-// 			fmt.Sprintf("SELECT sql FROM sqlite_master WHERE type='table' AND name='%s'", table_name) +
-// 			constraint
-// 	res, err := database.Query(copy_table_query)
-// 	if_wrong(err, "failed to copy table")
-// 	print(res)
-// 	// delete old table
-// 	// rename new table like old one
-// }
+func Update_value(path_to_database, table, id, column, new_value string) error {
+	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
+	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
+	table = single_quote_text(table)
+	column = single_quote_text(column)
+	new_value = single_quote_text(new_value)
+	mb_statement := mb.Convey[*sql.DB, string](mb_db, func() string { return statement_update_value(table, column, new_value, id) })
+	breadcrumb(verbose, "statement:", mb_statement)
+	mb_result := mb.Convey[*sql.DB, sql.Result](mb_db, func() (sql.Result, error) { return mb_db.Value.Exec(mb_statement.Value) })
+	mb_id_int := mb.Bind_i_o_e(mb_result, sql.Result.LastInsertId)
+	mb_id_string := mb.Convey[int64, string](mb_id_int, func() string { return strconv.FormatInt(mb_id_int.Value, 10) })
+	return mb_id_string.Error
+}
+
+func statement_update_value(table, column, value, id string) string {
+	query := fmt.Sprintln("UPDATE", table, "SET", column, "=", value, "WHERE id IS", id)
+	return query
+}
 
 func zip_map(keys_slice []string, values_slice []string) (map[string]string, error) {
 	if len(keys_slice) != len(values_slice) {
@@ -438,7 +435,6 @@ func single_quote_text(value string) string {
 	_, err := strconv.Atoi(value) // if can be inferred to an int then it is an int
 	if err != nil {
 		return "'" + value + "'"
-	} // what about boolean ?
-
+	}
 	return value
 }

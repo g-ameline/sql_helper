@@ -15,7 +15,7 @@ func Is_database_exist(path_to_db string) bool {
 	}
 	return !info.IsDir()
 }
-func All_tables(path_to_database string) (map[string]bool, error) {
+func Get_all_table_names(path_to_database string) (map[string]bool, error) {
 	tables := map[string]bool{}
 	database, err := sql.Open(database_driver, path_to_database)
 	if err != nil {
