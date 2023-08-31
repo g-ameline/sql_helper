@@ -30,5 +30,7 @@ func Test_try(t *testing.T) {
 	fmt.Println(Get_ids(path_to_db, "users"))
 	fmt.Println("update output", Update_value(path_to_db, "users", user_id, "session", "same"))
 	fmt.Println(Get_one_row(path_to_db, "users", "id", user_id))
-
+	fmt.Println("\ntry the det 1 id 2 cond stuff")
+	user_id = "3"
+	fmt.Println(Get_one_id_two_cond(path_to_db, "users", "id", user_id, "session", "same"))
 }

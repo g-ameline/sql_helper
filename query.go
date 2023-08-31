@@ -6,6 +6,7 @@ import (
 	"fmt"
 	mb "github.com/g-ameline/maybe"
 	_ "github.com/mattn/go-sqlite3"
+	"os"
 	"strconv"
 )
 
@@ -28,51 +29,35 @@ const comma = " , "
 
 const verbose = true
 
-func Insert_row(path_to_database string, table_name string, values_by_fields map[string]string) (string, error) {
-	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
-	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
-	single_quote_text_values(values_by_fields)
-	mb_statement := mb.Convey[*sql.DB, string](mb_db, func() string { return statement_insert_row(table_name, values_by_fields) })
-	breadcrumb(verbose, "statement:", mb_statement)
-	mb_result := mb.Convey[*sql.DB, sql.Result](mb_db, func() (sql.Result, error) { return mb_db.Value.Exec(mb_statement.Value) })
-	mb_id_int := mb.Bind_i_o_e(mb_result, sql.Result.LastInsertId)
-	mb_id_string := mb.Convey[int64, string](mb_id_int, func() string { return strconv.FormatInt(mb_id_int.Value, 10) })
-	return mb.Relinquish(mb_id_string)
-}
-
-func statement_insert_row(table_name string, values_by_fields map[string]string) string {
-	var statement string
-	var fields_part, values_part string
-	statement += "INSERT INTO " + table_name
-	// column first
-	fields_part += "( "
-	values_part += "( "
-	for field, value := range values_by_fields {
-		fields_part += field + comma
-		values_part += value + comma
+func Is_database_exist(path_to_db string) bool {
+	info, err := os.Stat(path_to_db)
+	fmt.Println("info stat", info)
+	if os.IsNotExist(err) {
+		return false
 	}
-	if len(fields_part) > len(comma) && len(values_part) > len(comma) {
-		fields_part = fields_part[:len(fields_part)-len(comma)] // remove last comma
-		values_part = values_part[:len(values_part)-len(comma)] // remove last comma
-	}
-	fields_part += ") "
-	values_part += ") "
-	// then values
-	statement += fields_part
-	statement += "VALUES "
-	statement += values_part
-	return statement
+	return !info.IsDir()
 }
-
-func Delete_records(path_to_database string, table_name, field, value string) error {
+func Get_all_table_names(path_to_database string) (map[string]bool, error) {
+	tables := map[string]bool{}
 	database, err := sql.Open(database_driver, path_to_database)
+	if err != nil {
+		return tables, err
+	}
 	defer database.Close() // good practice
-	value = single_quote_text(value)
-	single_quote_text(value)
-	statement := statement_delete_rows(table_name, field, value)
-	breadcrumb(verbose, "deletion statement:", statement)
-	_, err = database.Exec(statement)
-	return err
+	query := "SELECT name FROM sqlite_schema WHERE type='table'"
+	fmt.Println(query)
+	rows, err := database.Query(query)
+	if_wrong(err, "error while querying all row/record")
+	defer rows.Close()
+	for rows.Next() {
+		var table_name string
+		err := rows.Scan(&table_name)
+		tables[table_name] = true
+		if err != nil {
+			return tables, err
+		}
+	}
+	return tables, err
 }
 
 func Get_one_row(path_to_database string, table_name, field_key, value_key string) (map[string]string, error) {
@@ -80,7 +65,7 @@ func Get_one_row(path_to_database string, table_name, field_key, value_key strin
 	defer database.Close() // good practice
 	var query string
 	value_key = single_quote_text(value_key)
-	query = query_get_one_row(table_name, field_key, value_key)
+	query = query_rows_one_cond(table_name, field_key, value_key)
 	breadcrumb(verbose, "query:", query)
 	rows, err := database.Query(query)
 	defer rows.Close()
@@ -110,17 +95,15 @@ func Get_one_row(path_to_database string, table_name, field_key, value_key strin
 	return *new(map[string]string), errors.New("error during row scanning")
 }
 
-func Get_all_rows_from_table(path_to_database string, table_name, sorting_field string) (map[string]map[string]string, error) {
+func Get_all_rows(path_to_database string, table_name string) (map[string]map[string]string, error) {
 	table_as_map := make(map[string]map[string]string)
 	m_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
 	defer mb.Bind_x_x_e(m_db, m_db.Value.Close) // good practice
-	m_query := mb.Convey[*sql.DB, string](m_db, func() string { return query_get_all_rows(table_name, sorting_field) })
+	m_query := mb.Convey[*sql.DB, string](m_db, func() string { return query_rows(table_name) })
 	breadcrumb(verbose, "query for getting all rows", m_query)
 	m_rows := mb.Convey[string, *sql.Rows](m_query, func() (*sql.Rows, error) { return m_db.Value.Query(m_query.Value) })
-	// m_rows.Print("inside rows")
 	defer mb.Bind_x_x_e(m_rows, m_rows.Value.Close)
 	m_fields := mb.Bind_x_o_e(m_rows, m_rows.Value.Columns)
-	// m_rows.Print("inside fields")
 	breadcrumb(verbose, "fields from table", m_fields.Value)
 	if m_fields.Is_error() {
 		return *new(map[string]map[string]string), m_fields.Error
@@ -142,44 +125,9 @@ func Get_all_rows_from_table(path_to_database string, table_name, sorting_field 
 				ascerted_values[i] = maybe_value.String
 			}
 		}
-		if_wrong(err, "error during scanning of a row"+" "+table_name+" "+sorting_field)
-		// breadcrumb(verbose, "fields", fields)
-		// breadcrumb(verbose, "values", values)
+		if_wrong(err, "error during scanning of a row"+" "+table_name)
 		row_as_map, _ = zip_map(fields, ascerted_values)
-		table_as_map[row_as_map[sorting_field]] = row_as_map
-	}
-	return table_as_map, err
-}
-
-func Get_rows_one_condition(path_to_database string, table_name, sorting_field string) (map[string]map[string]string, error) {
-	table_as_map := make(map[string]map[string]string)
-	m_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
-	defer mb.Bind_x_x_e(m_db, m_db.Value.Close) // good practice
-	m_query := mb.Convey[*sql.DB, string](m_db, func() string { return query_get_all_rows(table_name, sorting_field) })
-	breadcrumb(verbose, "query for getting all rows", m_query)
-	m_rows := mb.Convey[string, *sql.Rows](m_query, func() (*sql.Rows, error) { return m_db.Value.Query(m_query.Value) })
-	// m_rows.Print("inside rows")
-	defer mb.Bind_x_x_e(m_rows, m_rows.Value.Close)
-	m_fields := mb.Bind_x_o_e(m_rows, m_rows.Value.Columns)
-	// m_rows.Print("inside fields")
-	// if_wrong(err, "issue when fetching columns names")
-	breadcrumb(verbose, "fields from table", m_fields.Value)
-	rows := m_rows.Ascertain()
-	fields := m_fields.Ascertain()
-	var err error
-	for rows.Next() {
-		var row_as_map map[string]string
-		values := make([]string, len(fields))
-		pointers_v := make([]any, len(fields))
-		for i := range values {
-			pointers_v[i] = &values[i]
-		}
-		err = rows.Scan(pointers_v...)
-		if_wrong(err, "error during scanning of a row"+" "+table_name+" "+sorting_field)
-		// breadcrumb(verbose, "fields", fields)
-		// breadcrumb(verbose, "values", values)
-		row_as_map, _ = zip_map(fields, values)
-		table_as_map[row_as_map[sorting_field]] = row_as_map
+		table_as_map[row_as_map["id"]] = row_as_map
 	}
 	return table_as_map, err
 }
@@ -190,7 +138,7 @@ func Get_all_rows_sorted(path_to_database string, table_name, sorting_field stri
 	if_wrong(err, "error opening/creating database")
 	defer database.Close() // good practice
 	var query string
-	query = query_get_all_rows(table_name, sorting_field)
+	query = query_rows_sorted(table_name, sorting_field)
 	breadcrumb(verbose, "query for getting all rows", query)
 	rows, err := database.Query(query)
 	if_wrong(err, "error when fetching all rows")
@@ -225,43 +173,30 @@ func Get_all_rows_sorted(path_to_database string, table_name, sorting_field stri
 	return table_as_slice, err
 }
 
-func query_get_all_rows(table_name, sorting_field string) string {
-	var query string
-	query += "SELECT * FROM " + table_name + " ORDER BY " + sorting_field
-	return query
+func query_rows_sorted(table_name, sorting_field string) string {
+	return fmt.Sprintln("SELECT * FROM", table_name, "ORDER BY", sorting_field)
+}
+func query_rows(table_name string) string {
+	return fmt.Sprintln("SELECT id FROM", table_name)
 }
 
-func query_get_rows_two_cond(table_name, field, value, other_field, other_value string) string {
-	var query string
-	query += "SELECT * FROM " + table_name + " WHERE " + field + "=" + value + " AND " + other_field + "=" + other_value
-	return query
+func query_rows_one_cond(table_name, field, value string) string {
+	return fmt.Sprintln("SELECT * FROM", table_name, "WHERE", field, "=", value)
 }
 
-func query_get_one_row(table_name, field, value string) string {
-	var query string
-	query += "SELECT * FROM " + table_name + " WHERE " + field + " = " + value
-	return query
+func query_rows_two_cond(table_name, field, value, other_field, other_value string) string {
+	return fmt.Sprintln("SELECT * FROM", table_name, "WHERE", field, "=", value, "AND", other_field, "=", other_value)
 }
 
-func query_get_row_one_cond(table_name, field, value string) string {
-	var query string
-	query += "SELECT * FROM " + table_name + " WHERE " + field + " = " + value
-	return query
-}
-
-func Get_id(path_to_database string, table_name, field_key, value_key string) (string, error) {
+func Get_id_one_cond(path_to_database string, table_name, field_key, value_key string) (string, error) {
 	var row_as_map map[string]string
-	database, err := sql.Open(database_driver, path_to_database)
-	if_wrong(err, "error opening database")
-	defer database.Close() // good practice
-	var query string
-	value_key = single_quote_text(value_key)
-	query = query_get_one_row(table_name, field_key, value_key)
-	rows, err := database.Query(query)
-	if_wrong(err, "error while fetching row")
+	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
+	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
+	query := query_rows_one_cond(table_name, field_key, value_key)
+	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
+	rows := mb_rows.Ascertain()
 	defer rows.Close()
-	var fields []string
-	fields, err = rows.Columns()
+	fields, err := rows.Columns()
 	if_wrong(err, "error while reading row")
 	values := make([]string, len(fields))
 	pointers_v := make([]any, len(fields))
@@ -276,9 +211,10 @@ func Get_id(path_to_database string, table_name, field_key, value_key string) (s
 }
 
 func Get_one_id_two_cond(path_to_database string, table_name, field_key, value_key, other_field, other_value string) (string, error) {
+	s := single_quote_text
 	m_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
 	defer mb.Bind_x_x_e(m_db, m_db.Value.Close) // good practice
-	querying := query_get_ids_two_cond(table_name, field_key, value_key, other_field, other_value)
+	querying := query_ids_two_cond(table_name, field_key, s(value_key), other_field, s(other_value))
 	m_query := mb.Convey[*sql.DB, string](m_db, querying)
 	breadcrumb(verbose, "cond ids query:", m_query)
 	m_rows := mb.Convey[string, *sql.Rows](m_query, func() (*sql.Rows, error) { return m_db.Value.Query(m_query.Value) })
@@ -293,8 +229,9 @@ func Get_one_id_two_cond(path_to_database string, table_name, field_key, value_k
 		ids[id] = true
 		if_wrong(err, "error during scanning of a row"+" "+table_name)
 	}
+	fmt.Println("ids", ids)
 	if len(ids) != 1 {
-		return "", fmt.Errorf("there was les sor more than one result")
+		return "", fmt.Errorf("there was less or more than one result")
 	}
 	var id string
 	for k := range ids {
@@ -305,11 +242,10 @@ func Get_one_id_two_cond(path_to_database string, table_name, field_key, value_k
 func Get_ids_two_cond(path_to_database string, table_name, field_key, value_key, other_field, other_value string) (map[string]bool, error) {
 	m_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
 	defer mb.Bind_x_x_e(m_db, m_db.Value.Close) // good practice
-	querying := query_get_ids_two_cond(table_name, field_key, value_key, other_field, other_value)
+	querying := query_ids_two_cond(table_name, field_key, value_key, other_field, other_value)
 	m_query := mb.Convey[*sql.DB, string](m_db, querying)
 	breadcrumb(verbose, "cond ids query:", m_query)
 	m_rows := mb.Convey[string, *sql.Rows](m_query, func() (*sql.Rows, error) { return m_db.Value.Query(m_query.Value) })
-	// m_rows.Print("inside rows")
 	defer mb.Bind_x_x_e(m_rows, m_rows.Value.Close)
 	rows := m_rows.Ascertain()
 	var err error
@@ -323,13 +259,11 @@ func Get_ids_two_cond(path_to_database string, table_name, field_key, value_key,
 	return ids, err
 }
 
-func query_get_ids_two_cond(table_name, field, value, other_field, other_value string) string {
-	var query string
-	query += "SELECT id FROM " + table_name + " WHERE " + field + "=" + value + " AND " + other_field + "=" + other_value
-	return query
+func query_ids_two_cond(table_name, field, value, other_field, other_value string) string {
+	return fmt.Sprintln("SELECT id FROM", table_name, "WHERE", field, "=", value, "AND", other_field, "=", other_value)
 }
-func Check_if_record(path_to_database string, table, field_1, value_1, field_2, value_2 string) (bool, error) { // for likes or dislikes
-	query := "SELECT 1 FROM " + table + " WHERE " + field_1 + "=" + value_1 + " AND " + field_2 + "=" + value_2
+func Is_record_one_cond(path_to_database string, table, field_1, value_1 string) (bool, error) { // for likes or dislikes
+	query := fmt.Sprintln("SELECT 1 FROM", table, "WHERE", field_1, "=", value_1)
 	database, err := sql.Open(database_driver, path_to_database)
 	if_wrong(err, "error accessing database")
 	defer database.Close() // good practice
@@ -339,8 +273,9 @@ func Check_if_record(path_to_database string, table, field_1, value_1, field_2, 
 	return rows.Next(), err
 }
 
-func Is_in_database(path_to_database string, table, field_1, value_1, field_2, value_2 string) (bool, error) {
-	query := "SELECT 1 FROM " + table + " WHERE " + field_1 + "=" + value_1 + " AND " + field_2 + "=" + value_2
+func Is_record_two_cond(path_to_database string, table, field_1, value_1, field_2, value_2 string) (bool, error) {
+	s := single_quote_text
+	query := fmt.Sprintln("SELECT 1 FROM", table, "WHERE", field_1, "=", s(value_1), "AND", field_2, "=", s(value_2))
 	database, err := sql.Open(database_driver, path_to_database)
 	if_wrong(err, "error accessing database")
 	defer database.Close() // good practice
@@ -348,19 +283,13 @@ func Is_in_database(path_to_database string, table, field_1, value_1, field_2, v
 	if_wrong(err, "error while querying all row/record")
 	defer rows.Close()
 	return rows.Next(), err
-}
-
-func statement_delete_rows(table_name, field, value string) string {
-	var statement string
-	statement += "DELETE FROM " + table_name + " WHERE " + field + " = " + value
-	return statement
 }
 
 func Count_all_rows(path_to_database string, table_name string) (int, error) {
 	database, err := sql.Open(database_driver, path_to_database)
 	if_wrong(err, "error accessing database")
 	defer database.Close() // good practice
-	query := query_ids_from_table(table_name)
+	query := query_ids(table_name)
 	breadcrumb(verbose, "counting statement:", query)
 	rows, err := database.Query(query)
 	if_wrong(err, "error while querying all row/record")
@@ -375,7 +304,7 @@ func Get_ids(path_to_database string, table_name string) (map[string]bool, error
 	database, err := sql.Open(database_driver, path_to_database)
 	if_wrong(err, "error accessing database")
 	defer database.Close() // good practice
-	query := query_ids_from_table(table_name)
+	query := query_ids(table_name)
 	breadcrumb(verbose, "counting statement:", query)
 	rows, err := database.Query(query)
 	if_wrong(err, "error while querying all row/record")
@@ -390,28 +319,8 @@ func Get_ids(path_to_database string, table_name string) (map[string]bool, error
 	return ids, err
 }
 
-func query_ids_from_table(table_name string) string {
-	query := "SELECT id FROM " + table_name
-	return query
-}
-
-func Update_value(path_to_database, table, id, column, new_value string) error {
-	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
-	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
-	table = single_quote_text(table)
-	column = single_quote_text(column)
-	new_value = single_quote_text(new_value)
-	mb_statement := mb.Convey[*sql.DB, string](mb_db, func() string { return statement_update_value(table, column, new_value, id) })
-	breadcrumb(verbose, "statement:", mb_statement)
-	mb_result := mb.Convey[*sql.DB, sql.Result](mb_db, func() (sql.Result, error) { return mb_db.Value.Exec(mb_statement.Value) })
-	mb_id_int := mb.Bind_i_o_e(mb_result, sql.Result.LastInsertId)
-	mb_id_string := mb.Convey[int64, string](mb_id_int, func() string { return strconv.FormatInt(mb_id_int.Value, 10) })
-	return mb_id_string.Error
-}
-
-func statement_update_value(table, column, value, id string) string {
-	query := fmt.Sprintln("UPDATE", table, "SET", column, "=", value, "WHERE id IS", id)
-	return query
+func query_ids(table_name string) string {
+	return fmt.Sprintln("SELECT id FROM", table_name)
 }
 
 func zip_map(keys_slice []string, values_slice []string) (map[string]string, error) {

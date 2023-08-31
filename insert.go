@@ -2,12 +2,47 @@ package sql_helper
 
 import (
 	"database/sql"
+	mb "github.com/g-ameline/maybe"
+	_ "github.com/mattn/go-sqlite3"
 	"os"
+	"strconv"
 )
 
-// by default function will not overwrite existing element
-// if needed some recreate element should be added
+func Insert_one_row(path_to_database string, table_name string, values_by_fields map[string]string) (string, error) {
+	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
+	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
+	single_quote_text_values(values_by_fields)
+	mb_statement := mb.Convey[*sql.DB, string](mb_db, func() string { return statement_insert_row(table_name, values_by_fields) })
+	breadcrumb(verbose, "statement:", mb_statement)
+	mb_result := mb.Convey[*sql.DB, sql.Result](mb_db, func() (sql.Result, error) { return mb_db.Value.Exec(mb_statement.Value) })
+	mb_id_int := mb.Bind_i_o_e(mb_result, sql.Result.LastInsertId)
+	mb_id_string := mb.Convey[int64, string](mb_id_int, func() string { return strconv.FormatInt(mb_id_int.Value, 10) })
+	return mb.Relinquish(mb_id_string)
+}
 
+func statement_insert_row(table_name string, values_by_fields map[string]string) string {
+	var statement string
+	var fields_part, values_part string
+	statement += "INSERT INTO " + table_name
+	// column first
+	fields_part += "( "
+	values_part += "( "
+	for field, value := range values_by_fields {
+		fields_part += field + comma
+		values_part += value + comma
+	}
+	if len(fields_part) > len(comma) && len(values_part) > len(comma) {
+		fields_part = fields_part[:len(fields_part)-len(comma)] // remove last comma
+		values_part = values_part[:len(values_part)-len(comma)] // remove last comma
+	}
+	fields_part += ") "
+	values_part += ") "
+	// then values
+	statement += fields_part
+	statement += "VALUES "
+	statement += values_part
+	return statement
+}
 func Create_database(path_to_db string) error {
 	file, err := os.Create(path_to_db)
 	defer file.Close()
