@@ -192,7 +192,7 @@ func Get_id_one_cond(path_to_database string, table_name, field_key, value_key s
 	var row_as_map map[string]string
 	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
 	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
-	query := query_rows_one_cond(table_name, field_key, value_key)
+	query := query_rows_one_cond(table_name, field_key, single_quote_text(value_key))
 	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
 	rows := mb_rows.Ascertain()
 	defer rows.Close()
