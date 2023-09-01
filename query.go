@@ -2,7 +2,6 @@ package sql_helper
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 	mb "github.com/g-ameline/maybe"
 	_ "github.com/mattn/go-sqlite3"
@@ -57,31 +56,41 @@ func Get_tables_name(path_to_database string) (map[string]bool, error) {
 			return tables, err
 		}
 	}
+	if len(tables) == 0 {
+		return map[string]bool{}, fmt.Errorf("no table found")
+	}
 	return tables, err
 }
 
 func Get_row_one_cond(path_to_database string, table_name, field_key, value_key string) (map[string]string, error) {
-	database, err := sql.Open(database_driver, path_to_database)
-	defer database.Close() // good practice
-	var query string
+	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
+	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
 	value_key = single_quote_text(value_key)
-	query = query_rows_one_cond(table_name, field_key, value_key)
+	query := query_rows_one_cond(table_name, field_key, value_key)
 	breadcrumb(verbose, "query:", query)
-	rows, err := database.Query(query)
-	defer rows.Close()
-	breadcrumb(verbose, "rows from  query :", rows)
-	fields, err3 := rows.Columns()
-	if err3 != nil { // catch here
-		return nil, err
+	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
+	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
+	mb_fields := mb.Bind_x_o_e(mb_rows, mb_rows.Value.Columns)
+	if mb_fields.Is_error() {
+		return *new(map[string]string), mb_fields.Error
 	}
+	return only_one_row(mb_rows.Value, mb_fields.Value)
+}
+
+func only_one_row(rows *sql.Rows, fields []string) (map[string]string, error) {
+	var empty map[string]string
+	breadcrumb(verbose, "fields", fields)
 	maybe_values := make([]sql.NullString, len(fields))
 	pointers_v := make([]any, len(fields))
 	for i := range maybe_values {
 		pointers_v[i] = &maybe_values[i]
 	}
+	rows_as_slice := []map[string]string{}
 	if rows.Next() {
 		err := rows.Scan(pointers_v...)
-		breadcrumb(verbose, "fields", fields)
+		if err != nil {
+			return empty, err
+		}
 		ascerted_values := make([]string, len(maybe_values))
 		for i, m_v := range maybe_values {
 			if m_v.Valid {
@@ -90,87 +99,139 @@ func Get_row_one_cond(path_to_database string, table_name, field_key, value_key 
 		}
 		breadcrumb(verbose, "values", ascerted_values)
 		row_as_map, err := zip_map(fields, ascerted_values)
-		return row_as_map, err
+		if err != nil {
+			return empty, err
+		}
+		rows_as_slice = append(rows_as_slice, row_as_map)
 	}
-	return *new(map[string]string), errors.New("error during row scanning")
+	if len(rows_as_slice) != 1 {
+		return empty, fmt.Errorf("less or more than one row found")
+	}
+	return rows_as_slice[0], nil
+}
+
+func rows_sorted(rows *sql.Rows, fields []string) ([]map[string]string, error) {
+	var empty []map[string]string
+	breadcrumb(verbose, "fields", fields)
+	maybe_values := make([]sql.NullString, len(fields))
+	pointers_v := make([]any, len(fields))
+	for i := range maybe_values {
+		pointers_v[i] = &maybe_values[i]
+	}
+	rows_as_slice := []map[string]string{}
+	if rows.Next() {
+		err := rows.Scan(pointers_v...)
+		if err != nil {
+			return empty, err
+		}
+		ascerted_values := make([]string, len(maybe_values))
+		for i, m_v := range maybe_values {
+			if m_v.Valid {
+				ascerted_values[i] = m_v.String
+			}
+		}
+		breadcrumb(verbose, "values", ascerted_values)
+		row_as_map, err := zip_map(fields, ascerted_values)
+		if err != nil {
+			return empty, err
+		}
+		rows_as_slice = append(rows_as_slice, row_as_map)
+	}
+	return rows_as_slice, nil
+}
+
+func rows_by_id(rows *sql.Rows, fields []string) (map[string]map[string]string, error) {
+	var empty map[string]map[string]string
+	breadcrumb(verbose, "fields", fields)
+	maybe_values := make([]sql.NullString, len(fields))
+	pointers_v := make([]any, len(fields))
+	for i := range maybe_values {
+		pointers_v[i] = &maybe_values[i]
+	}
+	rows_as_map := map[string]map[string]string{}
+	if rows.Next() {
+		err := rows.Scan(pointers_v...)
+		if err != nil {
+			return empty, err
+		}
+		ascerted_values := make([]string, len(maybe_values))
+		for i, m_v := range maybe_values {
+			if m_v.Valid {
+				ascerted_values[i] = m_v.String
+			}
+		}
+		breadcrumb(verbose, "values", ascerted_values)
+		row_as_map, err := zip_map(fields, ascerted_values)
+		if err != nil {
+			return empty, err
+		}
+		rows_as_map[row_as_map["id"]] = row_as_map
+	}
+	if len(rows_as_map) == 0 {
+		return empty, fmt.Errorf("no table found of that name or table empty")
+	}
+	return rows_as_map, nil
+}
+
+func only_ids(rows *sql.Rows) (map[string]bool, error) {
+	var empty map[string]bool
+	ids_from_rows := map[string]bool{}
+	if rows.Next() {
+		var id string
+		err := rows.Scan(&id)
+		if err != nil {
+			return empty, err
+		}
+		ids_from_rows[id] = true
+	}
+	return ids_from_rows, nil
+}
+
+func only_one_id(rows *sql.Rows) (string, error) {
+	var empty string
+	ids_from_rows := []string{}
+	if rows.Next() {
+		var id string
+		err := rows.Scan(&id)
+		if err != nil {
+			return empty, err
+		}
+		ids_from_rows = append(ids_from_rows, id)
+	}
+	if len(ids_from_rows) != 1 {
+		return empty, fmt.Errorf("more or less than 1 id found")
+	}
+	return ids_from_rows[0], nil
 }
 
 func Get_rows(path_to_database string, table_name string) (map[string]map[string]string, error) {
-	table_as_map := make(map[string]map[string]string)
-	m_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
-	defer mb.Bind_x_x_e(m_db, m_db.Value.Close) // good practice
-	m_query := mb.Convey[*sql.DB, string](m_db, func() string { return query_rows(table_name) })
-	breadcrumb(verbose, "query for getting all rows", m_query)
-	m_rows := mb.Convey[string, *sql.Rows](m_query, func() (*sql.Rows, error) { return m_db.Value.Query(m_query.Value) })
-	defer mb.Bind_x_x_e(m_rows, m_rows.Value.Close)
-	m_fields := mb.Bind_x_o_e(m_rows, m_rows.Value.Columns)
-	breadcrumb(verbose, "fields from table", m_fields.Value)
-	if m_fields.Is_error() {
-		return *new(map[string]map[string]string), m_fields.Error
+	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
+	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
+	query := query_rows(table_name)
+	breadcrumb(verbose, "query for getting all rows", query)
+	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
+	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
+	mb_fields := mb.Bind_x_o_e(mb_rows, mb_rows.Value.Columns)
+	breadcrumb(verbose, "fields from table", mb_fields.Value)
+	if mb_fields.Is_error() {
+		return *new(map[string]map[string]string), mb_fields.Error
 	}
-	rows := m_rows.Ascertain()
-	fields := m_fields.Ascertain()
-	var err error
-	for rows.Next() {
-		var row_as_map map[string]string
-		maybe_values := make([]sql.NullString, len(fields))
-		pointers_v := make([]any, len(fields))
-		for i := range maybe_values {
-			pointers_v[i] = &maybe_values[i]
-		}
-		err = rows.Scan(pointers_v...)
-		ascerted_values := make([]string, len(fields))
-		for i, maybe_value := range maybe_values {
-			if maybe_value.Valid {
-				ascerted_values[i] = maybe_value.String
-			}
-		}
-		if_wrong(err, "error during scanning of a row"+" "+table_name)
-		row_as_map, _ = zip_map(fields, ascerted_values)
-		table_as_map[row_as_map["id"]] = row_as_map
-	}
-	return table_as_map, err
+	return rows_by_id(mb_rows.Value, mb_fields.Value)
 }
 
 func Get_rows_sorted(path_to_database string, table_name, sorting_field string) ([]map[string]string, error) {
-	var table_as_slice []map[string]string
-	database, err := sql.Open(database_driver, path_to_database)
-	if_wrong(err, "error opening/creating database")
-	defer database.Close() // good practice
-	var query string
-	query = query_rows_sorted(table_name, sorting_field)
+	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
+	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
+	query := query_rows_sorted(table_name, sorting_field)
 	breadcrumb(verbose, "query for getting all rows", query)
-	rows, err := database.Query(query)
-	if_wrong(err, "error when fetching all rows")
-	defer rows.Close()
-	var fields []string
-	fields, err = rows.Columns()
-	if_wrong(err, "issue when fetching columns names")
-	breadcrumb(verbose, "fields from table", fields)
-	for rows.Next() {
-		var row_as_map map[string]sql.NullString
-		values := make([]string, len(fields))
-		pointers_v := make([]any, len(fields))
-		for i := range values {
-			pointers_v[i] = &values[i]
-		}
-		err = rows.Scan(pointers_v...)
-		if_wrong(err, "error during scanning of a row"+" "+table_name+" "+sorting_field)
-		breadcrumb(verbose, "fields", fields)
-		breadcrumb(verbose, "values", values)
-		//deal with null values
-		treated_rows := map[string]string{}
-		for k, v := range row_as_map {
-			if v.Valid {
-				treated_rows[k] = v.String
-			} else {
-				treated_rows[k] = ""
-			}
-		}
-		treated_rows, _ = zip_map(fields, values)
-		table_as_slice = append(table_as_slice, treated_rows)
+	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
+	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
+	mb_fields := mb.Bind_x_o_e(mb_rows, mb_rows.Value.Columns)
+	if mb_fields.Is_error() {
+		return []map[string]string{}, mb_fields.Error
 	}
-	return table_as_slice, err
+	breadcrumb(verbose, "fields from table", mb_fields)
+	return rows_sorted(mb_rows.Value, mb_fields.Value)
 }
 
 func query_rows_sorted(table_name, sorting_field string) string {
@@ -196,21 +257,10 @@ func Get_id_one_cond(path_to_database string, table_name, field_key, value_key s
 	breadcrumb(true, query)
 	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
 	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
-	rows := mb_rows.Ascertain()
-	var err error
-	var id string
-	for rows.Next() {
-		if id != "" {
-			return "", fmt.Errorf("there was less or more than one result")
-		}
-		err = rows.Scan(&id)
-		if_wrong(err, "error during scanning of a row"+" "+table_name)
+	if mb_rows.Is_error() {
+		return "", mb_rows.Error
 	}
-	if id == "" {
-		return "", fmt.Errorf("there was no matching")
-	}
-	fmt.Println("get id one cond result", id, err)
-	return id, err
+	return only_one_id(mb_rows.Value)
 }
 
 func Get_id_two_cond(path_to_database string, table_name, field_key, value_key, other_field, other_value string) (string, error) {
@@ -221,39 +271,24 @@ func Get_id_two_cond(path_to_database string, table_name, field_key, value_key, 
 	breadcrumb(verbose, "cond ids query:", query)
 	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
 	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
-	rows := mb_rows.Ascertain()
-	var err error
-	var id string
-	for rows.Next() {
-		if id != "" {
-			return "", fmt.Errorf("there was less or more than one result")
-		}
-		err = rows.Scan(&id)
-		if_wrong(err, "error during scanning of a row"+" "+table_name)
+	if mb_rows.Is_error() {
+		return "", mb_rows.Error
 	}
-	if id == "" {
-		return "", fmt.Errorf("there was no matching")
-	}
-	return id, err
+	return only_one_id(mb_rows.Value)
 }
 func Get_ids_two_cond(path_to_database string, table_name, field_key, value_key, other_field, other_value string) (map[string]bool, error) {
+	s := single_quote_text
 	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
 	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
-	querying := query_ids_two_cond(table_name, field_key, value_key, other_field, other_value)
-	mb_query := mb.Convey[*sql.DB, string](mb_db, querying)
+	query := query_ids_two_cond(table_name, field_key, s(value_key), other_field, s(other_value))
+	mb_query := mb.Convey[*sql.DB, string](mb_db, query)
 	breadcrumb(verbose, "cond ids query:", mb_query)
 	mb_rows := mb.Convey[string, *sql.Rows](mb_query, func() (*sql.Rows, error) { return mb_db.Value.Query(mb_query.Value) })
 	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
-	rows := mb_rows.Ascertain()
-	var err error
-	ids := map[string]bool{}
-	for rows.Next() {
-		var id string
-		err = rows.Scan(&id)
-		ids[id] = true
-		if_wrong(err, "error during scanning of a row"+" "+table_name)
+	if mb_rows.Is_error() {
+		return map[string]bool{}, mb_rows.Error
 	}
-	return ids, err
+	return only_ids(mb_rows.Value)
 }
 
 func query_ids_one_cond(table_name, field, value string) string {
@@ -263,14 +298,20 @@ func query_ids_two_cond(table_name, field, value, other_field, other_value strin
 	return fmt.Sprintln("SELECT id FROM", table_name, "WHERE", field, "=", value, "AND", other_field, "=", other_value)
 }
 func Is_record_one_cond(path_to_database string, table, field_1, value_1 string) (bool, error) { // for likes or dislikes
-	query := fmt.Sprintln("SELECT 1 FROM", table, "WHERE", field_1, "=", value_1)
-	database, err := sql.Open(database_driver, path_to_database)
-	if_wrong(err, "error accessing database")
-	defer database.Close() // good practice
-	rows, err := database.Query(query)
-	if_wrong(err, "error while querying all row/record")
-	defer rows.Close()
-	return rows.Next(), err
+	s := single_quote_text
+	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
+	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
+	query := fmt.Sprintln("SELECT 1 FROM", table, "WHERE", field_1, "=", s(value_1))
+	fmt.Println("query checking 1 record exist", query)
+	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
+	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
+	if mb_rows.Is_error() {
+		return false, mb_rows.Error
+	}
+	rows := mb_rows.Value
+	exist := rows.Next()
+	var thingamajig any
+	return exist, rows.Scan(&thingamajig)
 }
 
 func Is_record_two_cond(path_to_database string, table, field_1, value_1, field_2, value_2 string) (bool, error) {
@@ -368,8 +409,11 @@ func single_quote_text_values(values_by_fields map[string]string) {
 }
 
 func single_quote_text(value string) string {
-	_, err := strconv.Atoi(value) // if can be inferred to an int then it is an int
-	if err != nil {
+	if value[0] == 39 && value[len(value)-1] == 39 {
+		return value
+	}
+	_, err_a := strconv.Atoi(value) // if can be inferred to an int then it is an int
+	if err_a != nil {
 		return "'" + value + "'"
 	}
 	return value
