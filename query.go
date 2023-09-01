@@ -177,7 +177,7 @@ func query_rows_sorted(table_name, sorting_field string) string {
 	return fmt.Sprintln("SELECT * FROM", table_name, "ORDER BY", sorting_field)
 }
 func query_rows(table_name string) string {
-	return fmt.Sprintln("SELECT id FROM", table_name)
+	return fmt.Sprintln("SELECT * FROM", table_name)
 }
 
 func query_rows_one_cond(table_name, field, value string) string {
