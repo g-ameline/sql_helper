@@ -189,38 +189,40 @@ func query_rows_two_cond(table_name, field, value, other_field, other_value stri
 }
 
 func Get_id_one_cond(path_to_database string, table_name, field_key, value_key string) (string, error) {
-	var row_as_map map[string]string
+	s := single_quote_text
 	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
 	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
-	query := query_rows_one_cond(table_name, field_key, single_quote_text(value_key))
+	query := query_rows_one_cond(table_name, field_key, s(value_key))
 	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
 	rows := mb_rows.Ascertain()
-	defer rows.Close()
-	fields, err := rows.Columns()
-	if_wrong(err, "error while reading row")
-	values := make([]string, len(fields))
-	pointers_v := make([]any, len(fields))
-	for i := range values {
-		pointers_v[i] = &values[i]
+	var err error
+	ids := map[string]bool{}
+	for rows.Next() {
+		var id string
+		err = rows.Scan(&id)
+		ids[id] = true
+		if_wrong(err, "error during scanning of a row"+" "+table_name)
 	}
-	rows.Next()
-	err = rows.Scan(pointers_v...)
-	if_wrong(err, "error during scanning of single row to get Id"+" "+table_name+" "+field_key+" "+value_key)
-	row_as_map, _ = zip_map(fields, values)
-	return row_as_map["Id"], err
+	fmt.Println("ids", ids)
+	if len(ids) != 1 {
+		return "", fmt.Errorf("there was less or more than one result")
+	}
+	var id string
+	for k := range ids {
+		id = k
+	}
+	return id, err
 }
 
 func Get_id_two_cond(path_to_database string, table_name, field_key, value_key, other_field, other_value string) (string, error) {
 	s := single_quote_text
-	m_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
-	defer mb.Bind_x_x_e(m_db, m_db.Value.Close) // good practice
-	querying := query_ids_two_cond(table_name, field_key, s(value_key), other_field, s(other_value))
-	m_query := mb.Convey[*sql.DB, string](m_db, querying)
-	breadcrumb(verbose, "cond ids query:", m_query)
-	m_rows := mb.Convey[string, *sql.Rows](m_query, func() (*sql.Rows, error) { return m_db.Value.Query(m_query.Value) })
-	// m_rows.Print("inside rows")
-	defer mb.Bind_x_x_e(m_rows, m_rows.Value.Close)
-	rows := m_rows.Ascertain()
+	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
+	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
+	query := query_ids_two_cond(table_name, field_key, s(value_key), other_field, s(other_value))
+	breadcrumb(verbose, "cond ids query:", query)
+	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
+	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
+	rows := mb_rows.Ascertain()
 	var err error
 	ids := map[string]bool{}
 	for rows.Next() {
@@ -240,14 +242,14 @@ func Get_id_two_cond(path_to_database string, table_name, field_key, value_key, 
 	return id, err
 }
 func Get_ids_two_cond(path_to_database string, table_name, field_key, value_key, other_field, other_value string) (map[string]bool, error) {
-	m_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
-	defer mb.Bind_x_x_e(m_db, m_db.Value.Close) // good practice
+	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
+	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
 	querying := query_ids_two_cond(table_name, field_key, value_key, other_field, other_value)
-	m_query := mb.Convey[*sql.DB, string](m_db, querying)
-	breadcrumb(verbose, "cond ids query:", m_query)
-	m_rows := mb.Convey[string, *sql.Rows](m_query, func() (*sql.Rows, error) { return m_db.Value.Query(m_query.Value) })
-	defer mb.Bind_x_x_e(m_rows, m_rows.Value.Close)
-	rows := m_rows.Ascertain()
+	mb_query := mb.Convey[*sql.DB, string](mb_db, querying)
+	breadcrumb(verbose, "cond ids query:", mb_query)
+	mb_rows := mb.Convey[string, *sql.Rows](mb_query, func() (*sql.Rows, error) { return mb_db.Value.Query(mb_query.Value) })
+	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
+	rows := mb_rows.Ascertain()
 	var err error
 	ids := map[string]bool{}
 	for rows.Next() {
