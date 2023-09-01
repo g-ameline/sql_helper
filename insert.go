@@ -2,22 +2,33 @@ package sql_helper
 
 import (
 	"database/sql"
+	"fmt"
+	// "fmt"
+	"os"
+	// "strconv"
+
 	mb "github.com/g-ameline/maybe"
 	_ "github.com/mattn/go-sqlite3"
-	"os"
-	"strconv"
 )
 
-func Insert_one_row(path_to_database string, table_name string, values_by_fields map[string]string) (string, error) {
+func Insert_row(path_to_database, table_name string, values_by_fields map[string]string) (string, error) {
+	m_database := mb.Mayhaps(sql.Open(database_driver, path_to_database))
+	defer m_database.Value.Close() // good practice
+	single_quote_text_values(values_by_fields)
+	statement_new_row := statement_insert_row(table_name, values_by_fields)
+	breadcrumb(verbose, "statement:", statement_new_row)
+	_, err := m_database.Value.Exec(statement_new_row)
+	return "3", err
+}
+
+func Insert_one_row(path_to_database string, table_name string, values_by_fields map[string]string) error {
 	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
 	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
 	single_quote_text_values(values_by_fields)
-	mb_statement := mb.Convey[*sql.DB, string](mb_db, func() string { return statement_insert_row(table_name, values_by_fields) })
-	breadcrumb(verbose, "statement:", mb_statement)
-	mb_result := mb.Convey[*sql.DB, sql.Result](mb_db, func() (sql.Result, error) { return mb_db.Value.Exec(mb_statement.Value) })
-	mb_id_int := mb.Bind_i_o_e(mb_result, sql.Result.LastInsertId)
-	mb_id_string := mb.Convey[int64, string](mb_id_int, func() string { return strconv.FormatInt(mb_id_int.Value, 10) })
-	return mb.Relinquish(mb_id_string)
+	statement := statement_insert_row(table_name, values_by_fields)
+	fmt.Println(statement)
+	mb_result := mb.Bind_x_o_e(mb_db, func() (sql.Result, error) { return mb_db.Value.Exec(statement) })
+	return mb_result.Error
 }
 
 func statement_insert_row(table_name string, values_by_fields map[string]string) string {
@@ -25,7 +36,7 @@ func statement_insert_row(table_name string, values_by_fields map[string]string)
 	var fields_part, values_part string
 	statement += "INSERT INTO " + table_name
 	// column first
-	fields_part += "( "
+	fields_part += " ( "
 	values_part += "( "
 	for field, value := range values_by_fields {
 		fields_part += field + comma
