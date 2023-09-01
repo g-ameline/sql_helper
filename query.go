@@ -194,6 +194,7 @@ func Get_id_one_cond(path_to_database string, table_name, field_key, value_key s
 	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
 	query := query_rows_one_cond(table_name, field_key, s(value_key))
 	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
+	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
 	rows := mb_rows.Ascertain()
 	var err error
 	ids := map[string]bool{}
