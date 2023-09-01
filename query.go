@@ -60,7 +60,7 @@ func Get_tables_name(path_to_database string) (map[string]bool, error) {
 	return tables, err
 }
 
-func Get_row_two_one_cond(path_to_database string, table_name, field_key, value_key string) (map[string]string, error) {
+func Get_row_one_cond(path_to_database string, table_name, field_key, value_key string) (map[string]string, error) {
 	database, err := sql.Open(database_driver, path_to_database)
 	defer database.Close() // good practice
 	var query string
@@ -192,25 +192,19 @@ func Get_id_one_cond(path_to_database string, table_name, field_key, value_key s
 	s := single_quote_text
 	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
 	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
-	query := query_rows_one_cond(table_name, field_key, s(value_key))
+	query := query_ids_one_cond(table_name, field_key, s(value_key))
+	breadcrumb(true, query)
 	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
 	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
 	rows := mb_rows.Ascertain()
 	var err error
-	ids := map[string]bool{}
-	for rows.Next() {
-		var id string
-		err = rows.Scan(&id)
-		ids[id] = true
-		if_wrong(err, "error during scanning of a row"+" "+table_name)
-	}
-	fmt.Println("ids", ids)
-	if len(ids) != 1 {
-		return "", fmt.Errorf("there was less or more than one result")
-	}
 	var id string
-	for k := range ids {
-		id = k
+	for rows.Next() {
+		if id != "" {
+			return "", fmt.Errorf("there was less or more than one result")
+		}
+		err = rows.Scan(&id)
+		if_wrong(err, "error during scanning of a row"+" "+table_name)
 	}
 	return id, err
 }
@@ -225,20 +219,13 @@ func Get_id_two_cond(path_to_database string, table_name, field_key, value_key, 
 	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
 	rows := mb_rows.Ascertain()
 	var err error
-	ids := map[string]bool{}
-	for rows.Next() {
-		var id string
-		err = rows.Scan(&id)
-		ids[id] = true
-		if_wrong(err, "error during scanning of a row"+" "+table_name)
-	}
-	fmt.Println("ids", ids)
-	if len(ids) != 1 {
-		return "", fmt.Errorf("there was less or more than one result")
-	}
 	var id string
-	for k := range ids {
-		id = k
+	for rows.Next() {
+		if id != "" {
+			return "", fmt.Errorf("there was less or more than one result")
+		}
+		err = rows.Scan(&id)
+		if_wrong(err, "error during scanning of a row"+" "+table_name)
 	}
 	return id, err
 }
@@ -262,6 +249,9 @@ func Get_ids_two_cond(path_to_database string, table_name, field_key, value_key,
 	return ids, err
 }
 
+func query_ids_one_cond(table_name, field, value string) string {
+	return fmt.Sprintln("SELECT id FROM", table_name, "WHERE", field, "=", value)
+}
 func query_ids_two_cond(table_name, field, value, other_field, other_value string) string {
 	return fmt.Sprintln("SELECT id FROM", table_name, "WHERE", field, "=", value, "AND", other_field, "=", other_value)
 }
