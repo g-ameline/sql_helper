@@ -206,6 +206,10 @@ func Get_id_one_cond(path_to_database string, table_name, field_key, value_key s
 		err = rows.Scan(&id)
 		if_wrong(err, "error during scanning of a row"+" "+table_name)
 	}
+	if id == "" {
+		return "", fmt.Errorf("there was no matching")
+	}
+	fmt.Println("get id one cond result", id, err)
 	return id, err
 }
 
@@ -226,6 +230,9 @@ func Get_id_two_cond(path_to_database string, table_name, field_key, value_key, 
 		}
 		err = rows.Scan(&id)
 		if_wrong(err, "error during scanning of a row"+" "+table_name)
+	}
+	if id == "" {
+		return "", fmt.Errorf("there was no matching")
 	}
 	return id, err
 }
