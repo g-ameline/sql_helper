@@ -37,7 +37,7 @@ func Is_database_exist(path_to_db string) bool {
 	}
 	return !info.IsDir()
 }
-func Get_all_table_names(path_to_database string) (map[string]bool, error) {
+func Get_tables_name(path_to_database string) (map[string]bool, error) {
 	tables := map[string]bool{}
 	database, err := sql.Open(database_driver, path_to_database)
 	if err != nil {
@@ -60,7 +60,7 @@ func Get_all_table_names(path_to_database string) (map[string]bool, error) {
 	return tables, err
 }
 
-func Get_one_row(path_to_database string, table_name, field_key, value_key string) (map[string]string, error) {
+func Get_row_two_one_cond(path_to_database string, table_name, field_key, value_key string) (map[string]string, error) {
 	database, err := sql.Open(database_driver, path_to_database)
 	defer database.Close() // good practice
 	var query string
@@ -95,7 +95,7 @@ func Get_one_row(path_to_database string, table_name, field_key, value_key strin
 	return *new(map[string]string), errors.New("error during row scanning")
 }
 
-func Get_all_rows(path_to_database string, table_name string) (map[string]map[string]string, error) {
+func Get_rows(path_to_database string, table_name string) (map[string]map[string]string, error) {
 	table_as_map := make(map[string]map[string]string)
 	m_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
 	defer mb.Bind_x_x_e(m_db, m_db.Value.Close) // good practice
@@ -132,7 +132,7 @@ func Get_all_rows(path_to_database string, table_name string) (map[string]map[st
 	return table_as_map, err
 }
 
-func Get_all_rows_sorted(path_to_database string, table_name, sorting_field string) ([]map[string]string, error) {
+func Get_rows_sorted(path_to_database string, table_name, sorting_field string) ([]map[string]string, error) {
 	var table_as_slice []map[string]string
 	database, err := sql.Open(database_driver, path_to_database)
 	if_wrong(err, "error opening/creating database")
@@ -210,7 +210,7 @@ func Get_id_one_cond(path_to_database string, table_name, field_key, value_key s
 	return row_as_map["Id"], err
 }
 
-func Get_one_id_two_cond(path_to_database string, table_name, field_key, value_key, other_field, other_value string) (string, error) {
+func Get_id_two_cond(path_to_database string, table_name, field_key, value_key, other_field, other_value string) (string, error) {
 	s := single_quote_text
 	m_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
 	defer mb.Bind_x_x_e(m_db, m_db.Value.Close) // good practice
