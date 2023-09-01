@@ -409,11 +409,10 @@ func single_quote_text_values(values_by_fields map[string]string) {
 }
 
 func single_quote_text(value string) string {
-	if len(value)<1 {
-		return value
-	}
-	if value[0] == 39 && value[len(value)-1] == 39 {
-		return value
+	if len(value) > 1 {
+		if value[0] == 39 && value[len(value)-1] == 39 {
+			return value
+		}
 	}
 	_, err_a := strconv.Atoi(value) // if can be inferred to an int then it is an int
 	if err_a != nil {

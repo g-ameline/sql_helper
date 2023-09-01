@@ -61,37 +61,10 @@ func Test_query(t *testing.T) {
 	fmt.Println(Get_id_two_cond(path_to_db, "users", "email", "wobi@e.w2", "first_name", "uz"))
 	fmt.Println("wrong")
 	fmt.Println(Get_id_two_cond(path_to_db, "users", "email", "wobi@e.w2", "first_name", "uasdz"))
-	fmt.Println(Get_id_two_cond(path_to_db, "users", "email", "wobi@e.w2", "firadst_name", "uz"))
+	fmt.Println(Get_id_two_cond(path_to_db, "users", "", "wobi@e.w2", "firadst_name", "uz"))
 	fmt.Println(Get_id_two_cond(path_to_db, "users", "email", "wosdbi@e.w2", "first_name", "uz"))
 	fmt.Println(Get_id_two_cond(path_to_db, "users", "esadmail", "wobi@e.w2", "first_name", "uz"))
 	fmt.Println(Get_id_two_cond(path_to_db, "usdasders", "email", "wobi@e.w2", "first_name", "uz"))
 	fmt.Println(Get_id_two_cond(path_to_nothing, "users", "email", "wobi@e.w2", "first_name", "uz"))
-
-	fmt.Println("\n__________________________")
-	fmt.Println("\nINSERT 1 ROW")
-	fmt.Println("ok")
-
-	a_group := map[string]string{}
-	a_group["title"] = "PATATE"
-	a_group["creator_id"] = "1"
-	fmt.Println(Insert_one_row(path_to_db, "groups", a_group))
-
-	// user_one, _ := Get_row_one_cond(path_to_db, "users", "id", "2")
-	// user_x := user_one
-	// delete(user_x, "id")
-	user_x := map[string]string{}
-	user_x["email"] = "balek"
-	user_x["password"] = "ladsa"
-	user_x["first_name"] = "BOOOOBB"
-	user_x["private"] = "1"
-	fmt.Println(Insert_one_row(path_to_db, "users", user_x))
-	fmt.Println(Insert_row(path_to_db, "users", user_x))
-	fmt.Println("wrong")
-	fmt.Println(Insert_one_row(path_to_nothing, "users", user_x))
-	fmt.Println(Insert_one_row(path_to_db, "usesadrs", user_x))
-	delete(user_x, "email")
-	fmt.Println(Insert_one_row(path_to_db, "users", user_x))
-	user_x["email"] = "wobi@e.w2"
-	fmt.Println(Insert_one_row(path_to_db, "users", user_x))
 
 }
