@@ -5,30 +5,22 @@ import (
 	"fmt"
 	// "fmt"
 	"os"
-	// "strconv"
+	"strconv"
 
 	mb "github.com/g-ameline/maybe"
 	_ "github.com/mattn/go-sqlite3"
 )
 
-func Insert_row(path_to_database, table_name string, values_by_fields map[string]string) (string, error) {
-	m_database := mb.Mayhaps(sql.Open(database_driver, path_to_database))
-	defer m_database.Value.Close() // good practice
-	single_quote_text_values(values_by_fields)
-	statement_new_row := statement_insert_row(table_name, values_by_fields)
-	breadcrumb(verbose, "statement:", statement_new_row)
-	_, err := m_database.Value.Exec(statement_new_row)
-	return "3", err
-}
-
-func Insert_one_row(path_to_database string, table_name string, values_by_fields map[string]string) error {
+func Insert_one_row(path_to_database string, table_name string, values_by_fields map[string]string) (string, error) {
 	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
-	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
+	defer mb_db.Value.Close() // good practice
 	single_quote_text_values(values_by_fields)
 	statement := statement_insert_row(table_name, values_by_fields)
 	fmt.Println(statement)
 	mb_result := mb.Bind_x_o_e(mb_db, func() (sql.Result, error) { return mb_db.Value.Exec(statement) })
-	return mb_result.Error
+	mb_id_int := mb.Bind_i_o_e(mb_result, sql.Result.LastInsertId)
+	mb_id_string := mb.Convey[int64, string](mb_id_int, func() string { return strconv.FormatInt(mb_id_int.Value, 10) })
+	return mb.Relinquish(mb_id_string)
 }
 
 func statement_insert_row(table_name string, values_by_fields map[string]string) string {

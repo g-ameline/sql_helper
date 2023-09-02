@@ -25,6 +25,7 @@ var database *sql.DB
 const database_driver = "sqlite3"
 
 const comma = " , "
+const NULL = "NULL"
 
 const verbose = true
 
@@ -86,23 +87,19 @@ func only_one_row(rows *sql.Rows, fields []string) (map[string]string, error) {
 		pointers_v[i] = &maybe_values[i]
 	}
 	rows_as_slice := []map[string]string{}
-	if rows.Next() {
+	for rows.Next() {
 		err := rows.Scan(pointers_v...)
 		if err != nil {
 			return empty, err
 		}
-		ascerted_values := make([]string, len(maybe_values))
-		for i, m_v := range maybe_values {
-			if m_v.Valid {
-				ascerted_values[i] = m_v.String
-			}
-		}
-		breadcrumb(verbose, "values", ascerted_values)
-		row_as_map, err := zip_map(fields, ascerted_values)
+		row_as_map, err := zip_nullables_map(fields, maybe_values)
 		if err != nil {
 			return empty, err
 		}
 		rows_as_slice = append(rows_as_slice, row_as_map)
+		if err := rows.Err(); err != nil {
+			return rows_as_slice[0], err
+		}
 	}
 	if len(rows_as_slice) != 1 {
 		return empty, fmt.Errorf("less or more than one row found")
@@ -119,7 +116,7 @@ func rows_sorted(rows *sql.Rows, fields []string) ([]map[string]string, error) {
 		pointers_v[i] = &maybe_values[i]
 	}
 	rows_as_slice := []map[string]string{}
-	if rows.Next() {
+	for rows.Next() {
 		err := rows.Scan(pointers_v...)
 		if err != nil {
 			return empty, err
@@ -136,6 +133,9 @@ func rows_sorted(rows *sql.Rows, fields []string) ([]map[string]string, error) {
 			return empty, err
 		}
 		rows_as_slice = append(rows_as_slice, row_as_map)
+		if err := rows.Err(); err != nil {
+			return rows_as_slice, err
+		}
 	}
 	return rows_as_slice, nil
 }
@@ -149,7 +149,7 @@ func rows_by_id(rows *sql.Rows, fields []string) (map[string]map[string]string, 
 		pointers_v[i] = &maybe_values[i]
 	}
 	rows_as_map := map[string]map[string]string{}
-	if rows.Next() {
+	for rows.Next() {
 		err := rows.Scan(pointers_v...)
 		if err != nil {
 			return empty, err
@@ -166,6 +166,9 @@ func rows_by_id(rows *sql.Rows, fields []string) (map[string]map[string]string, 
 			return empty, err
 		}
 		rows_as_map[row_as_map["id"]] = row_as_map
+		if err := rows.Err(); err != nil {
+			return rows_as_map, err
+		}
 	}
 	if len(rows_as_map) == 0 {
 		return empty, fmt.Errorf("no table found of that name or table empty")
@@ -176,13 +179,16 @@ func rows_by_id(rows *sql.Rows, fields []string) (map[string]map[string]string, 
 func only_ids(rows *sql.Rows) (map[string]bool, error) {
 	var empty map[string]bool
 	ids_from_rows := map[string]bool{}
-	if rows.Next() {
+	for rows.Next() {
 		var id string
 		err := rows.Scan(&id)
 		if err != nil {
 			return empty, err
 		}
 		ids_from_rows[id] = true
+		if err := rows.Err(); err != nil {
+			return ids_from_rows, err
+		}
 	}
 	return ids_from_rows, nil
 }
@@ -190,13 +196,16 @@ func only_ids(rows *sql.Rows) (map[string]bool, error) {
 func only_one_id(rows *sql.Rows) (string, error) {
 	var empty string
 	ids_from_rows := []string{}
-	if rows.Next() {
+	for rows.Next() {
 		var id string
 		err := rows.Scan(&id)
 		if err != nil {
 			return empty, err
 		}
 		ids_from_rows = append(ids_from_rows, id)
+		if err := rows.Err(); err != nil {
+			return id, err
+		}
 	}
 	if len(ids_from_rows) != 1 {
 		return empty, fmt.Errorf("more or less than 1 id found")
@@ -378,6 +387,24 @@ func zip_map(keys_slice []string, values_slice []string) (map[string]string, err
 	return keys_values, nil
 }
 
+func zip_nullables_map(keys_slice []string, nullables_values_slice []sql.NullString) (map[string]string, error) {
+	if len(keys_slice) != len(nullables_values_slice) {
+		return nil, fmt.Errorf("different length of slices when zipping it")
+	}
+	if len(keys_slice) == 0 {
+		return nil, fmt.Errorf("zero length slice of slices when zipping it")
+	}
+	keys_values := make(map[string]string)
+	for i := 0; i < len(keys_slice); i++ {
+		key := keys_slice[i]
+		nullable_value := nullables_values_slice[i]
+		if nullable_value.Valid {
+			keys_values[key] = nullables_values_slice[i].String
+		}
+	}
+	return keys_values, nil
+}
+
 func breadcrumb(v bool, helpers ...any) {
 	if v {
 		for _, h := range helpers {
@@ -409,10 +436,14 @@ func single_quote_text_values(values_by_fields map[string]string) {
 }
 
 func single_quote_text(value string) string {
-	if len(value) > 1 {
-		if value[0] == 39 && value[len(value)-1] == 39 {
-			return value
-		}
+	if value == NULL {
+		return value
+	}
+	if value == "" {
+		return NULL
+	}
+	if value[0] == 39 && value[len(value)-1] == 39 {
+		return value
 	}
 	_, err_a := strconv.Atoi(value) // if can be inferred to an int then it is an int
 	if err_a != nil {
