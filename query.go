@@ -72,10 +72,8 @@ func Get_row_one_cond(path_to_database string, table_name, field_key, value_key 
 	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
 	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
 	mb_fields := mb.Bind_x_o_e(mb_rows, mb_rows.Value.Columns)
-	if mb_fields.Is_error() {
-		return *new(map[string]string), mb_fields.Error
-	}
-	return only_one_row(mb_rows.Value, mb_fields.Value)
+	mb_rows_by_id := mb.Bind_x_o_e(mb_rows, func() (map[string]string, error) { return only_one_row(mb_rows.Value, mb_fields.Value) })
+	return mb.Relinquish(mb_rows_by_id)
 }
 
 func only_one_row(rows *sql.Rows, fields []string) (map[string]string, error) {
@@ -202,15 +200,63 @@ func only_one_id(rows *sql.Rows) (string, error) {
 		if err != nil {
 			return empty, err
 		}
-		ids_from_rows = append(ids_from_rows, id)
 		if err := rows.Err(); err != nil {
 			return id, err
 		}
+		ids_from_rows = append(ids_from_rows, id)
 	}
 	if len(ids_from_rows) != 1 {
 		return empty, fmt.Errorf("more or less than 1 id found")
 	}
 	return ids_from_rows[0], nil
+}
+
+func is_at_least_one_value(rows *sql.Rows) (answer bool, err error) {
+	for rows.Next() {
+		var thingamajig any
+		err = rows.Scan(&thingamajig)
+		if err != nil {
+			return answer, err
+		}
+		if err = rows.Err(); err != nil {
+			return answer, err
+		}
+		answer = true
+	}
+	return answer, err
+}
+func is_only_one_value(rows *sql.Rows) (answer bool, err error) {
+	var thingies []any
+	for rows.Next() {
+		var thingamajig any
+		err = rows.Scan(&thingamajig)
+		if err != nil {
+			return answer, err
+		}
+		if err = rows.Err(); err != nil {
+			return answer, err
+		}
+		thingies = append(thingies, thingamajig)
+	}
+	if len(thingies) == 1 {
+		answer = true
+	}
+	return answer, err
+}
+
+func how_many_rows(rows *sql.Rows) (counter int, err error) {
+	for rows.Next() {
+		var thingamajig any
+		err = rows.Scan(&thingamajig)
+		if err != nil {
+			return counter, err
+		}
+		if err = rows.Err(); err != nil {
+			return counter, err
+		}
+		counter++
+	}
+	return counter, err
 }
 
 func Get_rows(path_to_database string, table_name string) (map[string]map[string]string, error) {
@@ -222,10 +268,8 @@ func Get_rows(path_to_database string, table_name string) (map[string]map[string
 	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
 	mb_fields := mb.Bind_x_o_e(mb_rows, mb_rows.Value.Columns)
 	breadcrumb(verbose, "fields from table", mb_fields.Value)
-	if mb_fields.Is_error() {
-		return *new(map[string]map[string]string), mb_fields.Error
-	}
-	return rows_by_id(mb_rows.Value, mb_fields.Value)
+	mb_rows_by_id := mb.Bind_x_o_e(mb_rows, func() (map[string]map[string]string, error) { return rows_by_id(mb_rows.Value, mb_fields.Value) })
+	return mb.Relinquish(mb_rows_by_id)
 }
 
 func Get_rows_sorted(path_to_database string, table_name, sorting_field string) ([]map[string]string, error) {
@@ -236,11 +280,8 @@ func Get_rows_sorted(path_to_database string, table_name, sorting_field string) 
 	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
 	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
 	mb_fields := mb.Bind_x_o_e(mb_rows, mb_rows.Value.Columns)
-	if mb_fields.Is_error() {
-		return []map[string]string{}, mb_fields.Error
-	}
-	breadcrumb(verbose, "fields from table", mb_fields)
-	return rows_sorted(mb_rows.Value, mb_fields.Value)
+	mb_sorted_rows := mb.Bind_x_o_e(mb_rows, func() ([]map[string]string, error) { return rows_sorted(mb_rows.Value, mb_fields.Value) })
+	return mb.Relinquish(mb_sorted_rows)
 }
 
 func query_rows_sorted(table_name, sorting_field string) string {
@@ -266,10 +307,18 @@ func Get_id_one_cond(path_to_database string, table_name, field_key, value_key s
 	breadcrumb(true, query)
 	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
 	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
-	if mb_rows.Is_error() {
-		return "", mb_rows.Error
-	}
-	return only_one_id(mb_rows.Value)
+	return mb.Relinquish(mb.Bind_i_o_e(mb_rows, only_one_id))
+}
+
+func Get_ids_one_cond(path_to_database string, table_name, field_key, value_key string) (map[string]bool, error) {
+	s := single_quote_text
+	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
+	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
+	query := query_ids_one_cond(table_name, field_key, s(value_key))
+	breadcrumb(true, query)
+	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
+	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
+	return mb.Relinquish(mb.Bind_i_o_e(mb_rows, only_ids))
 }
 
 func Get_id_two_cond(path_to_database string, table_name, field_key, value_key, other_field, other_value string) (string, error) {
@@ -280,10 +329,7 @@ func Get_id_two_cond(path_to_database string, table_name, field_key, value_key, 
 	breadcrumb(verbose, "cond ids query:", query)
 	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
 	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
-	if mb_rows.Is_error() {
-		return "", mb_rows.Error
-	}
-	return only_one_id(mb_rows.Value)
+	return mb.Relinquish(mb.Bind_i_o_e(mb_rows, only_one_id))
 }
 func Get_ids_two_cond(path_to_database string, table_name, field_key, value_key, other_field, other_value string) (map[string]bool, error) {
 	s := single_quote_text
@@ -294,10 +340,7 @@ func Get_ids_two_cond(path_to_database string, table_name, field_key, value_key,
 	breadcrumb(verbose, "cond ids query:", mb_query)
 	mb_rows := mb.Convey[string, *sql.Rows](mb_query, func() (*sql.Rows, error) { return mb_db.Value.Query(mb_query.Value) })
 	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
-	if mb_rows.Is_error() {
-		return map[string]bool{}, mb_rows.Error
-	}
-	return only_ids(mb_rows.Value)
+	return mb.Relinquish(mb.Bind_i_o_e(mb_rows, only_ids))
 }
 
 func query_ids_one_cond(table_name, field, value string) string {
@@ -314,59 +357,39 @@ func Is_record_one_cond(path_to_database string, table, field_1, value_1 string)
 	fmt.Println("query checking 1 record exist", query)
 	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
 	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
-	if mb_rows.Is_error() {
-		return false, mb_rows.Error
-	}
-	rows := mb_rows.Value
-	exist := rows.Next()
-	var thingamajig any
-	return exist, rows.Scan(&thingamajig)
+	return mb.Relinquish(mb.Bind_i_o_e(mb_rows, is_at_least_one_value))
 }
 
 func Is_record_two_cond(path_to_database string, table, field_1, value_1, field_2, value_2 string) (bool, error) {
 	s := single_quote_text
+	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
+	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
 	query := fmt.Sprintln("SELECT 1 FROM", table, "WHERE", field_1, "=", s(value_1), "AND", field_2, "=", s(value_2))
-	database, err := sql.Open(database_driver, path_to_database)
-	if_wrong(err, "error accessing database")
-	defer database.Close() // good practice
-	rows, err := database.Query(query)
-	if_wrong(err, "error while querying all row/record")
-	defer rows.Close()
-	return rows.Next(), err
+	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
+	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
+	return mb.Relinquish(mb.Bind_i_o_e(mb_rows, is_at_least_one_value))
 }
 
 func Count_all_rows(path_to_database string, table_name string) (int, error) {
-	database, err := sql.Open(database_driver, path_to_database)
-	if_wrong(err, "error accessing database")
-	defer database.Close() // good practice
+	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
+	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
 	query := query_ids(table_name)
 	breadcrumb(verbose, "counting statement:", query)
-	rows, err := database.Query(query)
-	if_wrong(err, "error while querying all row/record")
-	defer rows.Close()
-	var counter int
-	for rows.Next() {
-		counter++
-	}
-	return counter, err
+	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
+	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
+	return mb.Relinquish(mb.Bind_i_o_e(mb_rows, how_many_rows))
 }
 func Get_ids(path_to_database string, table_name string) (map[string]bool, error) {
-	database, err := sql.Open(database_driver, path_to_database)
-	if_wrong(err, "error accessing database")
-	defer database.Close() // good practice
+	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
+	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
 	query := query_ids(table_name)
 	breadcrumb(verbose, "counting statement:", query)
-	rows, err := database.Query(query)
-	if_wrong(err, "error while querying all row/record")
-	defer rows.Close()
-	ids := map[string]bool{}
-	for rows.Next() {
-		var id string
-		err = rows.Scan(&id)
-		ids[id] = true
-		if_wrong(err, "error during scanning of a row"+" "+table_name)
+	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
+	if mb_rows.Is_error() {
+		return map[string]bool{}, mb_rows.Error
 	}
-	return ids, err
+	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
+	return mb.Relinquish(mb.Bind_i_o_e(mb_rows, only_ids))
 }
 
 func query_ids(table_name string) string {
