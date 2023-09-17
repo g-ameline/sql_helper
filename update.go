@@ -31,7 +31,7 @@ func Update_value_simple(path_to_database, table, column, old_value, new_value s
 	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
 	table = single_quote_text(table)
 	new_value = single_quote_text(new_value)
-	mb_statement := mb.Convey[*sql.DB, string](mb_db, func() string { return statement_update_value(table, column, old_value, new_value) })
+	mb_statement := mb.Convey[*sql.DB, string](mb_db, func() string { return statement_update_value_simple(table, column, old_value, new_value) })
 	breadcrumb(verbose, "statement:", mb_statement)
 	mb_result := mb.Convey[*sql.DB, sql.Result](mb_db, func() (sql.Result, error) { return mb_db.Value.Exec(mb_statement.Value) })
 	mb_id_int := mb.Bind_i_o_e(mb_result, sql.Result.LastInsertId)
