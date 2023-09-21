@@ -140,7 +140,7 @@ func rows_sorted(rows *sql.Rows, fields []string) ([]map[string]string, error) {
 
 func rows_by_id(rows *sql.Rows, fields []string) (map[string]map[string]string, error) {
 	var empty map[string]map[string]string
-	breadcrumb(verbose, "fields", fields)
+	// breadcrumb(verbose, "fields", fields)
 	maybe_values := make([]sql.NullString, len(fields))
 	pointers_v := make([]any, len(fields))
 	for i := range maybe_values {
@@ -158,7 +158,7 @@ func rows_by_id(rows *sql.Rows, fields []string) (map[string]map[string]string, 
 				ascerted_values[i] = m_v.String
 			}
 		}
-		breadcrumb(verbose, "values", ascerted_values)
+		// breadcrumb(verbose, "values", ascerted_values)
 		row_as_map, err := zip_map(fields, ascerted_values)
 		if err != nil {
 			return empty, err
