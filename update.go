@@ -5,7 +5,6 @@ import (
 	"fmt"
 	mb "github.com/g-ameline/maybe"
 	_ "github.com/mattn/go-sqlite3"
-	"strconv"
 )
 
 func Update_value(path_to_database, table, id, column, new_value string) error {
