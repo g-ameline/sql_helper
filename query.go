@@ -27,8 +27,6 @@ const database_driver = "sqlite3"
 const comma = " , "
 const NULL = "NULL"
 
-const verbose = true
-
 func Is_database_exist(path_to_db string) bool {
 	info, err := os.Stat(path_to_db)
 	fmt.Println("info stat", info)
@@ -68,7 +66,6 @@ func Get_row_one_cond(path_to_database string, table_name, field_key, value_key 
 	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
 	value_key = single_quote_text(value_key)
 	query := query_rows_one_cond(table_name, field_key, value_key)
-	breadcrumb(verbose, "query:", query)
 	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
 	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
 	mb_fields := mb.Bind_x_o_e(mb_rows, mb_rows.Value.Columns)
@@ -78,7 +75,6 @@ func Get_row_one_cond(path_to_database string, table_name, field_key, value_key 
 
 func only_one_row(rows *sql.Rows, fields []string) (map[string]string, error) {
 	var empty map[string]string
-	breadcrumb(verbose, "fields", fields)
 	maybe_values := make([]sql.NullString, len(fields))
 	pointers_v := make([]any, len(fields))
 	for i := range maybe_values {
@@ -107,7 +103,6 @@ func only_one_row(rows *sql.Rows, fields []string) (map[string]string, error) {
 
 func rows_sorted(rows *sql.Rows, fields []string) ([]map[string]string, error) {
 	var empty []map[string]string
-	breadcrumb(verbose, "fields", fields)
 	maybe_values := make([]sql.NullString, len(fields))
 	pointers_v := make([]any, len(fields))
 	for i := range maybe_values {
@@ -125,7 +120,6 @@ func rows_sorted(rows *sql.Rows, fields []string) ([]map[string]string, error) {
 				ascerted_values[i] = m_v.String
 			}
 		}
-		breadcrumb(verbose, "values", ascerted_values)
 		row_as_map, err := zip_map(fields, ascerted_values)
 		if err != nil {
 			return empty, err
@@ -140,7 +134,6 @@ func rows_sorted(rows *sql.Rows, fields []string) ([]map[string]string, error) {
 
 func rows_by_id(rows *sql.Rows, fields []string) (map[string]map[string]string, error) {
 	var empty map[string]map[string]string
-	// breadcrumb(verbose, "fields", fields)
 	maybe_values := make([]sql.NullString, len(fields))
 	pointers_v := make([]any, len(fields))
 	for i := range maybe_values {
@@ -158,7 +151,6 @@ func rows_by_id(rows *sql.Rows, fields []string) (map[string]map[string]string, 
 				ascerted_values[i] = m_v.String
 			}
 		}
-		// breadcrumb(verbose, "values", ascerted_values)
 		row_as_map, err := zip_map(fields, ascerted_values)
 		if err != nil {
 			return empty, err
@@ -263,11 +255,9 @@ func Get_rows(path_to_database string, table_name string) (map[string]map[string
 	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
 	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
 	query := query_rows(table_name)
-	breadcrumb(verbose, "query for getting all rows", query)
 	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
 	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
 	mb_fields := mb.Bind_x_o_e(mb_rows, mb_rows.Value.Columns)
-	breadcrumb(verbose, "fields from table", mb_fields.Value)
 	mb_rows_by_id := mb.Bind_x_o_e(mb_rows, func() (map[string]map[string]string, error) { return rows_by_id(mb_rows.Value, mb_fields.Value) })
 	return mb.Relinquish(mb_rows_by_id)
 }
@@ -276,7 +266,6 @@ func Get_rows_sorted(path_to_database string, table_name, sorting_field string) 
 	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
 	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
 	query := query_rows_sorted(table_name, sorting_field)
-	breadcrumb(verbose, "query for getting all rows", query)
 	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
 	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
 	mb_fields := mb.Bind_x_o_e(mb_rows, mb_rows.Value.Columns)
@@ -304,7 +293,6 @@ func Get_id_one_cond(path_to_database string, table_name, field_key, value_key s
 	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
 	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
 	query := query_ids_one_cond(table_name, field_key, s(value_key))
-	breadcrumb(true, query)
 	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
 	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
 	return mb.Relinquish(mb.Bind_i_o_e(mb_rows, only_one_id))
@@ -315,7 +303,6 @@ func Get_ids_one_cond(path_to_database string, table_name, field_key, value_key 
 	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
 	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
 	query := query_ids_one_cond(table_name, field_key, s(value_key))
-	breadcrumb(true, query)
 	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
 	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
 	return mb.Relinquish(mb.Bind_i_o_e(mb_rows, only_ids))
@@ -326,7 +313,6 @@ func Get_id_two_cond(path_to_database string, table_name, field_key, value_key, 
 	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
 	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
 	query := query_ids_two_cond(table_name, field_key, s(value_key), other_field, s(other_value))
-	breadcrumb(verbose, "cond ids query:", query)
 	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
 	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
 	return mb.Relinquish(mb.Bind_i_o_e(mb_rows, only_one_id))
@@ -337,7 +323,6 @@ func Get_ids_two_cond(path_to_database string, table_name, field_key, value_key,
 	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
 	query := query_ids_two_cond(table_name, field_key, s(value_key), other_field, s(other_value))
 	mb_query := mb.Convey[*sql.DB, string](mb_db, query)
-	breadcrumb(verbose, "cond ids query:", mb_query)
 	mb_rows := mb.Convey[string, *sql.Rows](mb_query, func() (*sql.Rows, error) { return mb_db.Value.Query(mb_query.Value) })
 	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
 	return mb.Relinquish(mb.Bind_i_o_e(mb_rows, only_ids))
@@ -374,7 +359,6 @@ func Count_all_rows(path_to_database string, table_name string) (int, error) {
 	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
 	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
 	query := query_ids(table_name)
-	breadcrumb(verbose, "counting statement:", query)
 	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
 	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
 	return mb.Relinquish(mb.Bind_i_o_e(mb_rows, how_many_rows))
@@ -383,7 +367,6 @@ func Get_ids(path_to_database string, table_name string) (map[string]bool, error
 	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
 	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
 	query := query_ids(table_name)
-	breadcrumb(verbose, "counting statement:", query)
 	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
 	if mb_rows.Is_error() {
 		return map[string]bool{}, mb_rows.Error
@@ -426,15 +409,6 @@ func zip_nullables_map(keys_slice []string, nullables_values_slice []sql.NullStr
 		}
 	}
 	return keys_values, nil
-}
-
-func breadcrumb(v bool, helpers ...any) {
-	if v {
-		for _, h := range helpers {
-			fmt.Print(h, " ")
-		}
-		fmt.Print("\n")
-	}
 }
 
 func if_wrong(err error, message string) {

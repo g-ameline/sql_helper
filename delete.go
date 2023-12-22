@@ -16,7 +16,6 @@ func Delete_rows(path_to_database string, table_name, field, value string) error
 	value = single_quote_text(value)
 	single_quote_text(value)
 	statement := statement_delete_rows(table_name, field, value)
-	breadcrumb(verbose, "deletion statement:", statement)
 	mb_result := mb.Convey[*sql.DB, sql.Result](mb_db, func() (sql.Result, error) { return mb_db.Value.Exec(statement) })
 	return mb_result.Error
 }

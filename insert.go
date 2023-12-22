@@ -84,7 +84,6 @@ func statement_create_table(table_name string, types_by_fields, constraints map[
 	statement = statement[:len(statement)-len(comma)] // remove last comma
 	statement += ") "
 
-	breadcrumb(verbose, "create table statement", statement)
 	return statement
 }
 
@@ -104,6 +103,5 @@ func Add_column_to_table(path_to_database, table_name, field, type_of_field, con
 func statement_add_column(table_name, field, type_of_field, constraint string) string {
 	var statement string
 	statement += "ALTER TABLE " + table_name + " ADD COLUMN " + field + " " + type_of_field + " " + constraint
-	breadcrumb(verbose, "add column", statement)
 	return statement
 }
