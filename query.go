@@ -360,16 +360,6 @@ func Get_ids_one_cond(path_to_database string, table_name, field_key, value_key 
 	return mb.Relinquish(mb.Bind_i_o_e(mb_rows, only_ids))
 }
 
-func Get_ids_two_cond(path_to_database string, table_name, field_key, value_key string) (map[string]bool, error) {
-	s := single_quote_text
-	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
-	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
-	query := query_ids_two_cond(table_name, field_key, s(value_key))
-	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
-	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
-	return mb.Relinquish(mb.Bind_i_o_e(mb_rows, only_ids))
-}
-
 func Get_ids_two_cond(path_to_database string, table_name,
 	field_key, value_key,
 	other_field, other_value string) (map[string]bool, error) {
