@@ -35,7 +35,7 @@ func Is_database_exist(path_to_db string) bool {
 	}
 	return !info.IsDir()
 }
-func Get_tables_name(path_to_database string) (map[string]bool, error) {
+func Get_tables_names(path_to_database string) (map[string]bool, error) {
 	tables := map[string]bool{}
 	database, err := sql.Open(database_driver, path_to_database)
 	if err != nil {
@@ -61,6 +61,28 @@ func Get_tables_name(path_to_database string) (map[string]bool, error) {
 	return tables, err
 }
 
+func Get_rows(path_to_database string, table_name string) (map[string]map[string]string, error) {
+	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
+	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
+	query := query_rows(table_name)
+	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
+	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
+	mb_fields := mb.Bind_x_o_e(mb_rows, mb_rows.Value.Columns)
+	mb_rows_by_id := mb.Bind_x_o_e(mb_rows, func() (map[string]map[string]string, error) { return rows_by_id(mb_rows.Value, mb_fields.Value) })
+	return mb.Relinquish(mb_rows_by_id)
+}
+
+func Get_rows_sorted(path_to_database string, table_name, sorting_field string) ([]map[string]string, error) {
+	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
+	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
+	query := query_rows_sorted(table_name, sorting_field)
+	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
+	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
+	mb_fields := mb.Bind_x_o_e(mb_rows, mb_rows.Value.Columns)
+	mb_sorted_rows := mb.Bind_x_o_e(mb_rows, func() ([]map[string]string, error) { return rows_sorted(mb_rows.Value, mb_fields.Value) })
+	return mb.Relinquish(mb_sorted_rows)
+}
+
 func Get_row_one_cond(path_to_database string, table_name, field_key, value_key string) (map[string]string, error) {
 	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
 	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
@@ -69,7 +91,48 @@ func Get_row_one_cond(path_to_database string, table_name, field_key, value_key 
 	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
 	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
 	mb_fields := mb.Bind_x_o_e(mb_rows, mb_rows.Value.Columns)
-	mb_rows_by_id := mb.Bind_x_o_e(mb_rows, func() (map[string]string, error) { return only_one_row(mb_rows.Value, mb_fields.Value) })
+	mb_row_by_id := mb.Bind_x_o_e(mb_rows, func() (map[string]string, error) { return only_one_row(mb_rows.Value, mb_fields.Value) })
+	return mb.Relinquish(mb_row_by_id)
+}
+
+func Get_row_two_cond(path_to_database string, table_name,
+	field_key, value_key,
+	other_field, other_value string) (map[string]string, error) {
+	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
+	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
+	value_key = single_quote_text(value_key)
+	query := query_rows_two_cond(table_name, field_key, value_key, other_field, other_value)
+	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
+	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
+	mb_fields := mb.Bind_x_o_e(mb_rows, mb_rows.Value.Columns)
+	mb_row_by_id := mb.Bind_x_o_e(mb_rows, func() (map[string]string, error) { return only_one_row(mb_rows.Value, mb_fields.Value) })
+	return mb.Relinquish(mb_row_by_id)
+}
+
+func Get_rows_one_cond(path_to_database string, table_name,
+	field_key, value_key string) (map[string]map[string]string, error) {
+	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
+	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
+	value_key = single_quote_text(value_key)
+	query := query_rows_one_cond(table_name, field_key, value_key)
+	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
+	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
+	mb_fields := mb.Bind_x_o_e(mb_rows, mb_rows.Value.Columns)
+	mb_rows_by_id := mb.Bind_x_o_e(mb_rows, func() (map[string]map[string]string, error) { return rows_by_id(mb_rows.Value, mb_fields.Value) })
+	return mb.Relinquish(mb_rows_by_id)
+}
+
+func Get_rows_two_cond(path_to_database string, table_name,
+	field_key, value_key,
+	other_field, other_value string) (map[string]map[string]string, error) {
+	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
+	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
+	value_key = single_quote_text(value_key)
+	query := query_rows_two_cond(table_name, field_key, value_key, other_field, other_value)
+	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
+	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
+	mb_fields := mb.Bind_x_o_e(mb_rows, mb_rows.Value.Columns)
+	mb_rows_by_id := mb.Bind_x_o_e(mb_rows, func() (map[string]map[string]string, error) { return rows_by_id(mb_rows.Value, mb_fields.Value) })
 	return mb.Relinquish(mb_rows_by_id)
 }
 
@@ -251,28 +314,6 @@ func how_many_rows(rows *sql.Rows) (counter int, err error) {
 	return counter, err
 }
 
-func Get_rows(path_to_database string, table_name string) (map[string]map[string]string, error) {
-	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
-	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
-	query := query_rows(table_name)
-	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
-	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
-	mb_fields := mb.Bind_x_o_e(mb_rows, mb_rows.Value.Columns)
-	mb_rows_by_id := mb.Bind_x_o_e(mb_rows, func() (map[string]map[string]string, error) { return rows_by_id(mb_rows.Value, mb_fields.Value) })
-	return mb.Relinquish(mb_rows_by_id)
-}
-
-func Get_rows_sorted(path_to_database string, table_name, sorting_field string) ([]map[string]string, error) {
-	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
-	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
-	query := query_rows_sorted(table_name, sorting_field)
-	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
-	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
-	mb_fields := mb.Bind_x_o_e(mb_rows, mb_rows.Value.Columns)
-	mb_sorted_rows := mb.Bind_x_o_e(mb_rows, func() ([]map[string]string, error) { return rows_sorted(mb_rows.Value, mb_fields.Value) })
-	return mb.Relinquish(mb_sorted_rows)
-}
-
 func query_rows_sorted(table_name, sorting_field string) string {
 	return fmt.Sprintln("SELECT * FROM", table_name, "ORDER BY", sorting_field)
 }
@@ -297,6 +338,17 @@ func Get_id_one_cond(path_to_database string, table_name, field_key, value_key s
 	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
 	return mb.Relinquish(mb.Bind_i_o_e(mb_rows, only_one_id))
 }
+func Get_id_two_cond(path_to_database string, table_name,
+	field_key, value_key,
+	other_field, other_value string) (string, error) {
+	s := single_quote_text
+	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
+	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
+	query := query_ids_two_cond(table_name, field_key, s(value_key), other_field, s(other_value))
+	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
+	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
+	return mb.Relinquish(mb.Bind_i_o_e(mb_rows, only_one_id))
+}
 
 func Get_ids_one_cond(path_to_database string, table_name, field_key, value_key string) (map[string]bool, error) {
 	s := single_quote_text
@@ -308,16 +360,19 @@ func Get_ids_one_cond(path_to_database string, table_name, field_key, value_key 
 	return mb.Relinquish(mb.Bind_i_o_e(mb_rows, only_ids))
 }
 
-func Get_id_two_cond(path_to_database string, table_name, field_key, value_key, other_field, other_value string) (string, error) {
+func Get_ids_two_cond(path_to_database string, table_name, field_key, value_key string) (map[string]bool, error) {
 	s := single_quote_text
 	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
 	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
-	query := query_ids_two_cond(table_name, field_key, s(value_key), other_field, s(other_value))
+	query := query_ids_two_cond(table_name, field_key, s(value_key))
 	mb_rows := mb.Convey[*sql.DB, *sql.Rows](mb_db, func() (*sql.Rows, error) { return mb_db.Value.Query(query) })
 	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
-	return mb.Relinquish(mb.Bind_i_o_e(mb_rows, only_one_id))
+	return mb.Relinquish(mb.Bind_i_o_e(mb_rows, only_ids))
 }
-func Get_ids_two_cond(path_to_database string, table_name, field_key, value_key, other_field, other_value string) (map[string]bool, error) {
+
+func Get_ids_two_cond(path_to_database string, table_name,
+	field_key, value_key,
+	other_field, other_value string) (map[string]bool, error) {
 	s := single_quote_text
 	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
 	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
@@ -328,11 +383,41 @@ func Get_ids_two_cond(path_to_database string, table_name, field_key, value_key,
 	return mb.Relinquish(mb.Bind_i_o_e(mb_rows, only_ids))
 }
 
+func Get_ids_three_cond(path_to_database string, table_name,
+	first_field, first_value,
+	second_field, second_value,
+	third_field, third_value string) (map[string]bool, error) {
+	s := single_quote_text
+	mb_db := mb.Mayhaps(sql.Open(database_driver, path_to_database))
+	defer mb.Bind_x_x_e(mb_db, mb_db.Value.Close) // good practice
+	query := query_ids_three_cond(table_name,
+		first_field, s(first_value),
+		second_field, s(second_value),
+		third_field, s(third_value))
+	mb_query := mb.Convey[*sql.DB, string](mb_db, query)
+	mb_rows := mb.Convey[string, *sql.Rows](mb_query, func() (*sql.Rows, error) { return mb_db.Value.Query(mb_query.Value) })
+	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
+	return mb.Relinquish(mb.Bind_i_o_e(mb_rows, only_ids))
+}
+
 func query_ids_one_cond(table_name, field, value string) string {
 	return fmt.Sprintln("SELECT id FROM", table_name, "WHERE", field, "=", value)
 }
 func query_ids_two_cond(table_name, field, value, other_field, other_value string) string {
-	return fmt.Sprintln("SELECT id FROM", table_name, "WHERE", field, "=", value, "AND", other_field, "=", other_value)
+	return fmt.Sprintln(
+		"SELECT id FROM", table_name,
+		"WHERE", field, "=", value,
+		"AND", other_field, "=", other_value)
+}
+func query_ids_three_cond(table_name,
+	first_field, first_value,
+	second_field, second_value,
+	third_field, third_value string) string {
+	return fmt.Sprintln(
+		"SELECT id FROM", table_name,
+		"WHERE", first_field, "=", first_value,
+		"AND", second_field, "=", second_value,
+		"AND", third_field, "=", third_value)
 }
 func Is_record_one_cond(path_to_database string, table, field_1, value_1 string) (bool, error) { // for likes or dislikes
 	s := single_quote_text
