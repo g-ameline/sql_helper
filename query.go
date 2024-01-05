@@ -69,6 +69,12 @@ func Get_rows(path_to_database string, table_name string) (map[string]map[string
 	defer mb.Bind_x_x_e(mb_rows, mb_rows.Value.Close)
 	mb_fields := mb.Bind_x_o_e(mb_rows, mb_rows.Value.Columns)
 	mb_rows_by_id := mb.Bind_x_o_e(mb_rows, func() (map[string]map[string]string, error) { return rows_by_id(mb_rows.Value, mb_fields.Value) })
+	mb_rows_by_id = mb.Bind_x_x_e(mb_rows_by_id, func() error {
+		if len(mb_rows_by_id.Value) == 0 {
+			return fmt.Errorf("no table found of that name or table empty")
+		}
+		return error(nil)
+	})
 	return mb.Relinquish(mb_rows_by_id)
 }
 
@@ -222,9 +228,6 @@ func rows_by_id(rows *sql.Rows, fields []string) (map[string]map[string]string, 
 		if err := rows.Err(); err != nil {
 			return rows_as_map, err
 		}
-	}
-	if len(rows_as_map) == 0 {
-		return empty, fmt.Errorf("no table found of that name or table empty")
 	}
 	return rows_as_map, nil
 }
