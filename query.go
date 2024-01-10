@@ -7,6 +7,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"os"
 	"strconv"
+	"strings"
 )
 
 /* some terminology :
@@ -520,6 +521,8 @@ func single_quote_text(value string) string {
 	if value[0] == 39 && value[len(value)-1] == 39 {
 		return value
 	}
+	value = strings.ReplaceAll(value, "'", "''")
+
 	_, err_a := strconv.Atoi(value) // if can be inferred to an int then it is an int
 	if err_a != nil {
 		return "'" + value + "'"
